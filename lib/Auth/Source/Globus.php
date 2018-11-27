@@ -1,14 +1,14 @@
 <?php
 
-require_once(dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/oauth/lib/Consumer.php');
-require_once(dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/oauth/libextinc/OAuth.php');
+require_once dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/oauth/lib/Consumer.php';
+require_once dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/oauth/libextinc/OAuth.php';
 
 /**
  * Authenticate using the Globus Platform Auth Protocol
  * Documentation: https://docs.globus.org/api/auth/developer-guide
  * Globus Website: https://www.globus.org/
  *
- * @author Rudra Chakraborty, Center for Computational Research - University at Buffalo. rudracha@buffalo.edu
+ * @author  Rudra Chakraborty, Center for Computational Research - University at Buffalo. rudracha@buffalo.edu
  * @package SimpleSAMLphp
  */
 
@@ -39,13 +39,14 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
     /**
      * Constructor for this authentication source.
      *
-     * @param array $info  Information about this authentication source.
-     * @param array $config  Configuration.
+     * @param array $info   Information about this authentication source.
+     * @param array $config Configuration.
      */
-    public function __construct($info, $config) {
+    public function __construct($info, $config)
+    {
         // Call the parent constructor first, as required by the interface
         parent::__construct($info, $config);
-        
+
         $this->key = $config['key'];
         $this->secret = $config['secret'];
         $this->scope = $config['scope'];
@@ -53,30 +54,30 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
         $this->redirect_uri= $config['redirect_uri'];
         $this->curl = curl_init();
         curl_setopt($this->curl, CURLOPT_USERAGENT, 'SSPHP Globus');
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($this->curl, CURLOPT_SSL_VERIFYHOST, true);
-        curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->curl, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, 2);
         curl_setopt($this->curl, CURLINFO_HEADER_OUT, true);
     }
 
     /**
-     * Flattens an associative array, derived from LinkedIn module's flatten
+     * SAMLize an associative array, derived from LinkedIn module's flatten
      *
      * @param array $array
      * @param string $prefix
      *
      * @return array the array with the new concatenated keys
      */
-    protected function flatten($array, $prefix = '') {
+    protected function samlize($array, $prefix = '')
+    {
         $newArr = array();
 
         foreach ($array as $key => $value) {
             if (is_array($value)) {
-                $newArr = $newArr + $this->flatten($value, $prefix . $key . '.');
+                $newArr = $newArr + $this->samlize($value, $prefix . $key . '.');
             } else {
-                $newArr[$prefix . $key] = $value;
+                $newArr[$prefix . $key] = array($value);
             }
         }
 
@@ -84,55 +85,44 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
     }
 
     /**
-    * Accepts a field containing a full name, attempts to extract a full name
-    *
-    * @param string $name
-    *
-    * @return an array containing first name and last name
-    */
-    protected function getFullName($name) {
+     * Accepts a field containing a full name, attempts to extract a full name
+     *
+     * @param string $name
+     *
+     * @return an array containing first name and last name
+     */
+    protected function getFullName($name)
+    {
         $trimmedName = trim($name);
-
-        if ($trimmedName && (strpos($trimmedName, ',') !== null || strpos($trimmedName, '\s') !== null)) {
-            $delimiter = strpos($name, ',') !== null ? ',' : '\s';
-            $nameParts = explode($delimiter, $trimmedName, 2);
-            $nameParts = array_map('trim', $nameParts);
-
-            $firstName;
-            $lastName;
-
-            if ($delimiter === '\s') {
-                $firstName = $nameParts[0];
-                $lastName = $nameParts[1];
-            } else {
-                $firstName = $nameParts[1];
-                $lastName = $nameParts[0];
-            }
-
-            return array(
-                'first_name' => $firstName,
-                'last_name' => $lastName
-            );
+        $lastName = 'UNKNOWN';
+        $firstName = 'UNKNOWN';
+    
+        // we mandate that a complete name be provided (not just a first name or last)
+        if(strpos($trimmedName, ',') !== false ) {
+            list($lastName, $firstName) = explode(',', $trimmedName, 2);
         }
-
+        elseif(strpos($trimmedName, ' ') !== false ) {
+            list($firstName, $lastName) = explode(' ', $trimmedName, 2);
+        }
+    
         return array(
-            'first_name' => 'UNKNOWN',
-            'last_name' => 'UNKNOWN'
+            'first_name' => trim($firstName),
+            'last_name' => trim($lastName)
         );
     }
 
     /**
-    * Wrapper for Curl Requests
-    *
-    * @param string path
-    * @param boolean signed
-    * @param string token
-    * @param string qs
-    * @param array contents
-    * @param string method
-    *
-    * @return The response from the endpoint where we made the request.
-    */
+     * Wrapper for Curl Requests
+     *
+     * @param string path
+     * @param boolean signed
+     * @param string token
+     * @param string qs
+     * @param array contents
+     * @param string method
+     *
+     * @return The response from the endpoint where we made the request.
+     */
     protected function doCurlRequest(
         $path,
         $signed = false,
@@ -146,7 +136,7 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
         } else {
             curl_setopt($this->curl, CURLOPT_USERPWD, null);
         }
-        
+
         $endPoint = self::API_ENDPT . $path . (($qs !== null) ? $qs : '');
         curl_setopt($this->curl, CURLOPT_URL, $endPoint);
 
@@ -189,7 +179,7 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
     /**
      * Obtain an Authorization Code
      *
-     * @param array &$state  Information about the current authentication.
+     * @param array &$state Information about the current authentication.
      */
     public function authenticate(&$state)
     {
@@ -220,7 +210,7 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
     /**
      * Exchange authorization code for an access token
      *
-     * @param array &$state  Information about the current authentication.
+     * @param array &$state Information about the current authentication.
      */
     public function finalStep(&$state)
     {
@@ -232,25 +222,9 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
 
         // Exchange the code we got earlier for an access token
         $result = $this->doCurlRequest('/oauth2/token', true, null, null, $request, 'POST');
-        $otherTokens = $result->other_tokens;
 
         // Use this access token to tell us about our current user + affiliations
         $userInfo = $this->doCurlRequest('/oauth2/userinfo', false, $result->access_token);
-
-        // Get any other identities we may have
-        $otherIdentities = array();
-
-        if (isset($otherTokens)) {
-            foreach ($otherTokens as &$item) {
-                $res = $this->doCurlRequest('/api/identities/', false, $item->access_token, $userInfo['sub']);
-
-                foreach ($res as &$id) {
-                    array_push($otherIdentities, $id);
-                }
-            }
-        }
-
-        $otherIdentities = $this->flatten($otherIdentities, 'identity.');
         $fullname = $this->getFullName($userInfo['name']);
 
         $attributes = array(
@@ -262,10 +236,8 @@ class sspmod_authglobus_Auth_Source_Globus extends SimpleSAML_Auth_Source
             'name' => array($userInfo['name']),
             'first_name' => array($fullname['first_name']),
             'last_name' => array($fullname['last_name']),
-            'organization' => array($userInfo['organization']),
-            'identities' => $otherIdentities
+            'organization' => array($userInfo['organization'])
         );
-
-        $state['Attributes'] = $attributes;
+        $state['Attributes'] = array_merge($attributes, $this->samlize($userInfo['identity_set'], 'identity.'));
     }
 }
